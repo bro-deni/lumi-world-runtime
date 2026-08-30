@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: lumi-world-runtime
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+
+    envVars:
+      - key: LUMI_EDGE_URL
+        value: https://lumi-world-core.lumi-world.workers.dev
+
+      - key: LUMI_AUTONOMY_SECONDS
+        value: "300"
+
+      - key: EVENT_SECRET
+        sync: false
