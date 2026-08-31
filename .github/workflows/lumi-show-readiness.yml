@@ -1,0 +1,95 @@
+name: LUMI Show Readiness
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "show-engine.mjs"
+      - "character-engine.mjs"
+      - "scene-director.mjs"
+      - "interaction-visualizer.mjs"
+      - "show-simulator.mjs"
+      - ".github/workflows/lumi-show-readiness.yml"
+
+jobs:
+  readiness:
+    name: Day-One Show Readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        duration:
+          - 30
+          - 60
+          - 180
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Display Node version
+        run: node --version
+
+      - name: Syntax check Show Engine
+        run: node --check show-engine.mjs
+
+      - name: Syntax check Character Engine
+        run: node --check character-engine.mjs
+
+      - name: Syntax check Scene Director
+        run: node --check scene-director.mjs
+
+      - name: Syntax check Interaction Visualizer
+        run: node --check interaction-visualizer.mjs
+
+      - name: Syntax check Show Simulator
+        run: node --check show-simulator.mjs
+
+      - name: Run ${{ matrix.duration }} minute simulation
+        run: |
+          node show-simulator.mjs ${{ matrix.duration }} \
+            > lumi-show-${{ matrix.duration }}m.json
+
+      - name: Print simulation result
+        if: always()
+        run: |
+          cat lumi-show-${{ matrix.duration }}m.json || true
+
+      - name: Validate PASS verdict
+        run: |
+          node -e "
+          const fs = require('fs');
+          const file = 'lumi-show-${{ matrix.duration }}m.json';
+          const result = JSON.parse(fs.readFileSync(file, 'utf8'));
+
+          console.log('Duration:', result.simulation?.minutes, 'minutes');
+          console.log('Verdict:', result.verdict);
+          console.log('Show events:', result.show?.showEvents);
+          console.log('Rare events:', result.show?.rareEvents);
+          console.log('Max overlays:', result.visual?.maxOverlays);
+          console.log('Failed checks:', result.failedChecks);
+
+          if (result.verdict !== 'PASS') {
+            console.error('LUMI SHOW READINESS FAILED');
+            process.exit(1);
+          }
+
+          console.log('LUMI SHOW READINESS PASS');
+          "
+
+      - name: Upload simulation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumi-show-${{ matrix.duration }}m-report
+          path: lumi-show-${{ matrix.duration }}m.json
+          retention-days: 7
