@@ -1,455 +1,330 @@
-import {
-  createShowEngine,
-} from "./show-engine.mjs";
-
-import {
-  createCharacterEngine,
-} from "./character-engine.mjs";
-
-import {
-  createSceneDirector,
-} from "./scene-director.mjs";
-
-import {
-  createInteractionVisualizer,
-} from "./interaction-visualizer.mjs";
-
-function seededRandom(seed = 123456789) {
-  let x =
-    seed >>> 0;
-
-  return () => {
-    x =
-      (
-        1664525 * x +
-        1013904223
-      ) >>> 0;
-
-    return (
-      x /
-      4294967296
-    );
-  };
-}
-
-export function runSimulation(
-  options = {}
-) {
-  const minutes =
-    Math.max(
-      1,
-      Math.min(
-        180,
-        Number(
-          options.minutes
-        ) || 30
-      )
-    );
-
-  const stepMs =
-    Math.max(
-      1000,
-      Number(
-        options.stepMs
-      ) || 1000
-    );
-
-  let now =
-    Date.UTC(
-      2026,
-      7,
-      31,
-      0,
-      0,
-      0
-    );
-
-  const clock =
-    () => now;
-
-  const random =
-    seededRandom(
-      options.seed || 42
-    );
-
-  const show =
-    createShowEngine({
-      clock,
-      random,
-    });
-
-  const character =
-    createCharacterEngine({
-      clock,
-      random,
-    });
-
-  const scene =
-    createSceneDirector();
-
-  const visualizer =
-    createInteractionVisualizer({
-      clock,
-      random,
-    });
-
-  const samples = [];
-
-  let showEvents = 0;
-  let rareEvents = 0;
-  let maxOverlays = 0;
-  let quietFrames = 0;
-  let activeFrames = 0;
-  let crowdedFrames = 0;
-
-  const totalSteps =
-    Math.floor(
-      minutes *
-        60_000 /
-        stepMs
-    );
-
-  for (
-    let i = 0;
-    i < totalSteps;
-    i += 1
-  ) {
-    now += stepMs;
-
-    const phase =
-      i / totalSteps;
-
-    const signals = [];
-
-    if (
-      phase > 0.18 &&
-      phase < 0.72 &&
-      i % 5 === 0
-    ) {
-      signals.push({
-        type: "like",
-        count: 8,
-      });
-    }
-
-    if (
-      phase > 0.25 &&
-      phase < 0.65 &&
-      i % 37 === 0
-    ) {
-      signals.push({
-        type: "comment",
-        text: "ayo lumi",
-      });
-    }
-
-    if (
-      phase > 0.30 &&
-      phase < 0.62 &&
-      i % 79 === 0
-    ) {
-      signals.push({
-        type: "follow",
-      });
-    }
-
-    if (
-      phase > 0.40 &&
-      phase < 0.60 &&
-      i % 131 === 0
-    ) {
-      signals.push({
-        type: "share",
-      });
-    }
-
-    if (
-      phase > 0.46 &&
-      phase < 0.55 &&
-      i % 211 === 0
-    ) {
-      signals.push({
-        type: "gift",
-        value: 10,
-      });
-    }
-
-    if (
-      phase > 0.34 &&
-      phase < 0.58 &&
-      i % 53 === 0
-    ) {
-      signals.push({
-        type: "vote",
-        option: "A",
-      });
-    }
-
-    for (
-      const signal of signals
-    ) {
-      show.ingest(signal);
-
-      character
-        .reactToAudience(
-          signal
-        );
-
-      visualizer
-        .ingest(
-          signal
-        );
-    }
-
-    const showFrame =
-      show.tick();
-
-    if (
-      showFrame.audienceMode ===
-      "quiet"
-    ) {
-      quietFrames += 1;
-    }
-
-    if (
-      showFrame.audienceMode ===
-      "active"
-    ) {
-      activeFrames += 1;
-    }
-
-    if (
-      showFrame.audienceMode ===
-      "crowded"
-    ) {
-      crowdedFrames += 1;
-    }
-
-    if (
-      showFrame.type ===
-      "show_event"
-    ) {
-      showEvents += 1;
-
-      if (
-        showFrame.event?.rare
-      ) {
-        rareEvents += 1;
-      }
-
-      character
-        .applyShowEvent(
-          showFrame.event,
-          showFrame.consequence,
-          showFrame.world
-        );
-    }
-
-    const charFrame =
-      character.tick({
-        world:
-          showFrame.world,
-
-        audienceMode:
-          showFrame
-            .audienceMode,
-      });
-
-    const overlays =
-      visualizer.frame();
-
-    maxOverlays =
-      Math.max(
-        maxOverlays,
-        overlays.visible.length
-      );
-
-    const sceneFrame =
-      scene.compose({
-        show:
-          showFrame,
-
-        character:
-          charFrame,
-
-        interactions:
-          overlays.visible,
-      });
-
-    if (
-      i % 30 === 0 ||
-      showFrame.type ===
-        "show_event"
-    ) {
-      samples.push({
-        at:
-          new Date(
-            now
-          ).toISOString(),
-
-        showType:
-          showFrame.type,
-
-        audienceMode:
-          showFrame
-            .audienceMode,
-
-        mood:
-          charFrame.mood,
-
-        action:
-          charFrame.action,
-
-        event:
-          showFrame.event
-            ?.id || null,
-
-        camera:
-          sceneFrame.camera,
-
-        overlays:
-          overlays.visible
-            .length,
-
-        xp:
-          showFrame.world?.xp,
-
-        love:
-          showFrame.world
-            ?.communityLove,
-      });
-    }
-  }
-
-  const showSnapshot =
-    show.snapshot();
-
-  const characterSnapshot =
-    character.snapshot();
-
-  const interactionSnapshot =
-    visualizer.snapshot();
-
-  const checks = {
-    enoughShowEvents:
-      showEvents >=
-      Math.max(
-        6,
-        minutes / 3
-      ),
-
-    overlayLimitRespected:
-      maxOverlays <= 4,
-
-    progressionMoves:
-      Number(
-        showSnapshot.world.xp
-      ) > 0,
-
-    quietModeObserved:
-      quietFrames > 0,
-
-    activeModeObserved:
-      activeFrames > 0,
-
-    characterStatePresent:
-      Boolean(
-        characterSnapshot
-          .state?.mood
-      ) &&
-      Boolean(
-        characterSnapshot
-          .state?.action
-      ),
-
-    interactionAggregationWorks:
-      Number(
-        interactionSnapshot
-          .aggregate?.likes
-      ) > 0,
-  };
-
-  const failedChecks =
-    Object.entries(checks)
-      .filter(
-        ([, value]) =>
-          !value
-      )
-      .map(
-        ([name]) =>
-          name
-      );
-
-  const ok =
-    failedChecks.length === 0;
-
-  return {
-    ok,
-
-    verdict:
-      ok
-        ? "PASS"
-        : "REVIEW",
-
-    minutes,
-    showEvents,
-    rareEvents,
-    maxOverlays,
-
-    audienceFrames: {
-      quiet:
-        quietFrames,
-
-      active:
-        activeFrames,
-
-      crowded:
-        crowdedFrames,
-    },
-
-    checks,
-
-    failedChecks,
-
-    finalWorld:
-      showSnapshot.world,
-
-    objective:
-      showSnapshot.objective,
-
-    finalCharacter:
-      characterSnapshot.state,
-
-    interactionAggregate:
-      interactionSnapshot.aggregate,
-
-    samples:
-      samples.slice(-40),
-  };
-}
-
-if (
-  import.meta.url ===
-  `file://${process.argv[1]}`
-) {
-  const result =
-    runSimulation({
-      minutes:
-        Number(
-          process.argv[2]
-        ) || 30,
-    });
-
-  console.log(
-    JSON.stringify(
-      result,
-      null,
-      2
+function clamp(value, min, max) {
+  return Math.max(
+    min,
+    Math.min(
+      max,
+      Number(value) || 0
     )
   );
+}
 
-  process.exitCode =
-    result.ok
-      ? 0
-      : 1;
+function safe(
+  value,
+  fallback = "",
+  max = 80
+) {
+  const text = String(
+    value ?? fallback
+  )
+    .replace(/[\r\n\t]/g, " ")
+    .trim()
+    .slice(0, max);
+
+  return text || fallback;
+}
+
+const RULES = Object.freeze({
+  like: {
+    kind: "meter_pulse",
+    label: "Community energy",
+    priority: 1,
+    ttlMs: 1400,
+  },
+
+  comment: {
+    kind: "chat_spark",
+    label: "LUMI noticed the chat",
+    priority: 2,
+    ttlMs: 2200,
+  },
+
+  follow: {
+    kind: "welcome",
+    label: "A new friend joined",
+    priority: 3,
+    ttlMs: 3000,
+  },
+
+  share: {
+    kind: "community_burst",
+    label: "The world is spreading",
+    priority: 3,
+    ttlMs: 3200,
+  },
+
+  gift: {
+    kind: "special_thanks",
+    label: "A special moment",
+    priority: 4,
+    ttlMs: 3800,
+  },
+
+  vote: {
+    kind: "vote_tick",
+    label: "The community is choosing",
+    priority: 2,
+    ttlMs: 1800,
+  },
+});
+
+export class InteractionVisualizer {
+  constructor(options = {}) {
+    this.clock =
+      options.clock ||
+      (() => Date.now());
+
+    this.random =
+      options.random ||
+      Math.random;
+
+    this.queue = [];
+
+    this.aggregate = {
+      likes: 0,
+      comments: 0,
+      follows: 0,
+      shares: 0,
+      gifts: 0,
+      votes: 0,
+    };
+  }
+
+  ingest(signal = {}) {
+    const type = safe(
+      signal.type,
+      "unknown",
+      20
+    ).toLowerCase();
+
+    const rule =
+      RULES[type];
+
+    if (!rule) {
+      return false;
+    }
+
+    const now =
+      Number(this.clock()) ||
+      Date.now();
+
+    const count =
+      clamp(
+        signal.count ?? 1,
+        0,
+        1_000_000
+      );
+
+    const value =
+      clamp(
+        signal.value ?? 0,
+        0,
+        1_000_000_000
+      );
+
+    switch (type) {
+      case "like":
+        this.aggregate.likes += count;
+        break;
+
+      case "comment":
+        this.aggregate.comments += 1;
+        break;
+
+      case "follow":
+        this.aggregate.follows += 1;
+        break;
+
+      case "share":
+        this.aggregate.shares += 1;
+        break;
+
+      case "gift":
+        this.aggregate.gifts += 1;
+        break;
+
+      case "vote":
+        this.aggregate.votes += 1;
+        break;
+    }
+
+    /*
+     * Likes can arrive extremely quickly.
+     * Do not create one visual overlay for every like.
+     */
+    const shouldQueue =
+      type !== "like" ||
+      this.aggregate.likes % 25 === 0;
+
+    if (shouldQueue) {
+      this.queue.push({
+        id:
+          `${type}-${now}-` +
+          Math.floor(
+            this.random() *
+              1_000_000
+          ),
+
+        type,
+
+        kind:
+          rule.kind,
+
+        label:
+          rule.label,
+
+        priority:
+          rule.priority,
+
+        ttlMs:
+          rule.ttlMs,
+
+        createdAt:
+          now,
+
+        expiresAt:
+          now +
+          rule.ttlMs,
+
+        count,
+
+        value,
+
+        text: safe(
+          signal.text,
+          "",
+          80
+        ),
+
+        option: safe(
+          signal.option,
+          "",
+          32
+        ),
+      });
+    }
+
+    /*
+     * Hard queue cap prevents interaction bursts
+     * from creating unbounded memory growth.
+     */
+    if (
+      this.queue.length >
+      100
+    ) {
+      this.queue.splice(
+        0,
+        this.queue.length -
+          100
+      );
+    }
+
+    return true;
+  }
+
+  frame() {
+    const now =
+      Number(this.clock()) ||
+      Date.now();
+
+    /*
+     * Remove expired visual reactions.
+     */
+    this.queue =
+      this.queue.filter(
+        (item) =>
+          item.expiresAt >
+          now
+      );
+
+    /*
+     * Highest-priority reactions appear first.
+     * Never display more than four simultaneously.
+     */
+    const visible =
+      [...this.queue]
+        .sort(
+          (a, b) =>
+            b.priority -
+              a.priority ||
+            b.createdAt -
+              a.createdAt
+        )
+        .slice(0, 4)
+        .map(
+          (item) => ({
+            ...item,
+
+            progress:
+              clamp(
+                (
+                  item.expiresAt -
+                  now
+                ) /
+                  item.ttlMs,
+                0,
+                1
+              ),
+          })
+        );
+
+    return {
+      visible,
+
+      aggregate: {
+        ...this.aggregate,
+      },
+
+      policy: {
+        aggregateLikes: true,
+
+        maxVisible: 4,
+
+        noGiftPressure: true,
+
+        noPayToWin: true,
+
+        noRawSpamFlood: true,
+      },
+    };
+  }
+
+  snapshot() {
+    return {
+      version: 1,
+
+      aggregate: {
+        ...this.aggregate,
+      },
+
+      queue:
+        this.queue.map(
+          (item) => ({
+            ...item,
+          })
+        ),
+    };
+  }
+
+  resetVisualQueue() {
+    this.queue = [];
+  }
+
+  resetAggregate() {
+    this.aggregate = {
+      likes: 0,
+      comments: 0,
+      follows: 0,
+      shares: 0,
+      gifts: 0,
+      votes: 0,
+    };
+  }
+}
+
+export function createInteractionVisualizer(
+  options = {}
+) {
+  return new InteractionVisualizer(
+    options
+  );
 }
