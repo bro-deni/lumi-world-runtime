@@ -14,6 +14,8 @@ on:
       - "show-simulator.mjs"
       - "live-show-runtime.mjs"
       - "live-show-runtime.test.mjs"
+      - "visual-renderer.mjs"
+      - "visual-renderer.test.mjs"
       - ".github/workflows/lumi-show-readiness.yml"
 
 jobs:
@@ -54,6 +56,53 @@ jobs:
 
       - name: Run Live Runtime Integration Tests
         run: node live-show-runtime.test.mjs
+
+  visual-preview:
+    name: Visual Renderer Preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Display FFmpeg version
+        run: ffmpeg -version | head -n 3
+
+      - name: Syntax check Visual Renderer
+        run: node --check visual-renderer.mjs
+
+      - name: Syntax check Visual Renderer Test
+        run: node --check visual-renderer.test.mjs
+
+      - name: Generate and validate visual preview
+        run: node visual-renderer.test.mjs
+
+      - name: Inspect preview file
+        run: |
+          ls -lh lumi-visual-preview.mp4
+          ffprobe \
+            -v error \
+            -show_entries stream=codec_name,width,height,pix_fmt,r_frame_rate \
+            -of json \
+            lumi-visual-preview.mp4
+
+      - name: Upload LUMI visual preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumi-visual-preview
+          path: lumi-visual-preview.mp4
+          retention-days: 7
 
   readiness:
     name: Day-One Show Readiness (${{ matrix.duration }})
