@@ -1,6 +1,7 @@
 const DEFAULT_CONFIG = Object.freeze({
   tickMs: 1000,
   recentHistorySize: 18,
+  hardRepeatWindow: 4,
   recentCategorySize: 8,
   eventCooldownMs: 45_000,
   rareEventCooldownMs: 8 * 60_000,
@@ -200,16 +201,31 @@ function nowMs(clock) {
 }
 
 function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
+  return Math.max(
+    min,
+    Math.min(max, value)
+  );
 }
 
-function finiteNumber(value, fallback = 0) {
+function finiteNumber(
+  value,
+  fallback = 0
+) {
   const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
+
+  return Number.isFinite(n)
+    ? n
+    : fallback;
 }
 
-function safeText(value, fallback = "", max = 120) {
-  const text = String(value ?? fallback)
+function safeText(
+  value,
+  fallback = "",
+  max = 120
+) {
+  const text = String(
+    value ?? fallback
+  )
     .replace(/[\r\n\t]/g, " ")
     .trim()
     .slice(0, max);
@@ -217,18 +233,27 @@ function safeText(value, fallback = "", max = 120) {
   return text || fallback;
 }
 
-function weightedPick(items, random) {
-  const total = items.reduce(
-    (sum, item) =>
-      sum + Math.max(0, item.weight || 0),
-    0
-  );
+function weightedPick(
+  items,
+  random
+) {
+  const total =
+    items.reduce(
+      (sum, item) =>
+        sum +
+        Math.max(
+          0,
+          item.weight || 0
+        ),
+      0
+    );
 
   if (total <= 0) {
     return items[0] || null;
   }
 
-  let cursor = random() * total;
+  let cursor =
+    random() * total;
 
   for (const item of items) {
     cursor -= Math.max(
@@ -241,11 +266,16 @@ function weightedPick(items, random) {
     }
   }
 
-  return items[items.length - 1] || null;
+  return (
+    items[
+      items.length - 1
+    ] || null
+  );
 }
 
 function stableRandom(seed) {
-  let x = (Number(seed) || 1) >>> 0;
+  let x =
+    (Number(seed) || 1) >>> 0;
 
   return () => {
     x ^= x << 13;
@@ -259,7 +289,9 @@ function stableRandom(seed) {
   };
 }
 
-function interactionScore(signal) {
+function interactionScore(
+  signal
+) {
   switch (signal.type) {
     case "like":
       return Math.min(
@@ -351,15 +383,18 @@ export class ShowEngine {
     this.lastAudienceSignalAt = 0;
     this.signalWindow = [];
     this.pendingSignals = [];
-    this.cooldowns = new Map();
+    this.cooldowns =
+      new Map();
+
     this.communityObjective =
       this.#newObjective();
+
     this.sequence = 0;
   }
 
   snapshot() {
     return {
-      version: 1,
+      version: 2,
 
       world: {
         ...this.world,
@@ -369,15 +404,19 @@ export class ShowEngine {
         this.#audienceMode(),
 
       objective: {
-        ...this.communityObjective,
+        ...this
+          .communityObjective,
       },
 
       recentEvents: [
-        ...this.recentEventIds,
+        ...this
+          .recentEventIds,
       ],
 
       pendingSignals:
-        this.pendingSignals.length,
+        this
+          .pendingSignals
+          .length,
 
       sequence:
         this.sequence,
@@ -387,14 +426,16 @@ export class ShowEngine {
   restore(snapshot) {
     if (
       !snapshot ||
-      typeof snapshot !== "object"
+      typeof snapshot !==
+        "object"
     ) {
       return false;
     }
 
     if (
       snapshot.world &&
-      typeof snapshot.world === "object"
+      typeof snapshot.world ===
+        "object"
     ) {
       this.world = {
         ...defaultWorldState(),
@@ -404,7 +445,8 @@ export class ShowEngine {
 
     if (
       snapshot.objective &&
-      typeof snapshot.objective === "object"
+      typeof snapshot.objective ===
+        "object"
     ) {
       this.communityObjective = {
         ...this.#newObjective(),
@@ -416,10 +458,12 @@ export class ShowEngine {
       Array.isArray(
         snapshot.recentEvents
       )
-        ? snapshot.recentEvents.slice(
-            -this.config
-              .recentHistorySize
-          )
+        ? snapshot
+            .recentEvents
+            .slice(
+              -this.config
+                .recentHistorySize
+            )
         : [];
 
     this.sequence =
@@ -434,7 +478,8 @@ export class ShowEngine {
   ingest(signal) {
     if (
       !signal ||
-      typeof signal !== "object"
+      typeof signal !==
+        "object"
     ) {
       return false;
     }
@@ -512,12 +557,15 @@ export class ShowEngine {
     );
 
     if (
-      this.pendingSignals.length >
-      this.config.maxPendingSignals
+      this.pendingSignals
+        .length >
+      this.config
+        .maxPendingSignals
     ) {
       this.pendingSignals.splice(
         0,
-        this.pendingSignals.length -
+        this.pendingSignals
+          .length -
           this.config
             .maxPendingSignals
       );
@@ -540,7 +588,9 @@ export class ShowEngine {
     this.#updateEnergy();
 
     const event =
-      this.#selectShowEvent(now);
+      this.#selectShowEvent(
+        now
+      );
 
     if (!event) {
       return {
@@ -555,7 +605,8 @@ export class ShowEngine {
         },
 
         objective: {
-          ...this.communityObjective,
+          ...this
+            .communityObjective,
         },
       };
     }
@@ -579,7 +630,6 @@ export class ShowEngine {
         this.#audienceMode(),
 
       event,
-
       consequence,
 
       world: {
@@ -587,7 +637,8 @@ export class ShowEngine {
       },
 
       objective: {
-        ...this.communityObjective,
+        ...this
+          .communityObjective,
       },
     };
   }
@@ -597,9 +648,10 @@ export class ShowEngine {
       now - 60_000;
 
     while (
-      this.signalWindow.length &&
-      this.signalWindow[0].at <
-        cutoff
+      this.signalWindow
+        .length &&
+      this.signalWindow[0]
+        .at < cutoff
     ) {
       this.signalWindow.shift();
     }
@@ -609,21 +661,22 @@ export class ShowEngine {
     const now =
       nowMs(this.clock);
 
-    const recentCount =
-      this.signalWindow.length;
-
     const quiet =
-      !this.lastAudienceSignalAt ||
+      !this
+        .lastAudienceSignalAt ||
       now -
-        this.lastAudienceSignalAt >=
-        this.config.quietAfterMs;
+        this
+          .lastAudienceSignalAt >=
+        this.config
+          .quietAfterMs;
 
     if (quiet) {
       return "quiet";
     }
 
     if (
-      recentCount >=
+      this.signalWindow
+        .length >=
       this.config
         .crowdedEventsPerMinute
     ) {
@@ -635,7 +688,9 @@ export class ShowEngine {
 
   #applyAudienceConsequences() {
     if (
-      !this.pendingSignals.length
+      !this
+        .pendingSignals
+        .length
     ) {
       return;
     }
@@ -643,7 +698,8 @@ export class ShowEngine {
     const batch =
       this.pendingSignals.splice(
         0,
-        this.pendingSignals.length
+        this.pendingSignals
+          .length
       );
 
     let love = 0;
@@ -656,9 +712,13 @@ export class ShowEngine {
       const signal of batch
     ) {
       const score =
-        interactionScore(signal);
+        interactionScore(
+          signal
+        );
 
-      switch (signal.type) {
+      switch (
+        signal.type
+      ) {
         case "like":
           love += Math.max(
             1,
@@ -696,17 +756,18 @@ export class ShowEngine {
           break;
 
         case "gift":
-          xp += Math.floor(
-            score
-          );
+          xp +=
+            Math.floor(score);
 
-          build += Math.floor(
-            score / 2
-          );
+          build +=
+            Math.floor(
+              score / 2
+            );
 
-          objective += Math.floor(
-            score / 2
-          );
+          objective +=
+            Math.floor(
+              score / 2
+            );
           break;
 
         case "vote":
@@ -731,7 +792,8 @@ export class ShowEngine {
 
     this.world.buildProgress =
       clamp(
-        this.world.buildProgress +
+        this.world
+          .buildProgress +
           build,
         0,
         100
@@ -747,7 +809,8 @@ export class ShowEngine {
       this.world.xp >=
         levelThreshold &&
       this.world.level <
-        this.config.maxWorldLevel
+        this.config
+          .maxWorldLevel
     ) {
       this.world.level += 1;
 
@@ -763,16 +826,19 @@ export class ShowEngine {
     if (
       this.world
         .objectiveProgress >=
-        this.communityObjective
+        this
+          .communityObjective
           .target ||
       now >=
-        this.communityObjective
+        this
+          .communityObjective
           .endsAt
     ) {
       const completed =
         this.world
           .objectiveProgress >=
-        this.communityObjective
+        this
+          .communityObjective
           .target;
 
       if (completed) {
@@ -795,14 +861,17 @@ export class ShowEngine {
       }
 
       this.communityObjective =
-        this.#newObjective(now);
+        this.#newObjective(
+          now
+        );
 
       this.world
         .objectiveProgress = 0;
 
       this.world
         .objectiveTarget =
-        this.communityObjective
+        this
+          .communityObjective
           .target;
     }
   }
@@ -847,7 +916,8 @@ export class ShowEngine {
 
       target,
 
-      startsAt: now,
+      startsAt:
+        now,
 
       endsAt:
         now +
@@ -860,7 +930,9 @@ export class ShowEngine {
     const mode =
       this.#audienceMode();
 
-    if (mode === "quiet") {
+    if (
+      mode === "quiet"
+    ) {
       this.world.energy =
         clamp(
           this.world.energy -
@@ -873,7 +945,8 @@ export class ShowEngine {
     ) {
       this.world.energy =
         clamp(
-          this.world.energy + 1,
+          this.world.energy +
+            1,
           0,
           100
         );
@@ -889,11 +962,12 @@ export class ShowEngine {
   }
 
   #selectShowEvent(now) {
-    const sinceLast =
-      now - this.lastEventAt;
-
     const mode =
       this.#audienceMode();
+
+    const sinceLast =
+      now -
+      this.lastEventAt;
 
     const minGap =
       mode === "quiet"
@@ -908,6 +982,22 @@ export class ShowEngine {
       return null;
     }
 
+    /*
+     * FIX:
+     * Only the latest few event IDs are hard-blocked.
+     * Long history remains available for weighting/diagnostics.
+     *
+     * The old implementation blocked every ID contained
+     * in the full history. Because the event pool is smaller
+     * than that history, long sessions eventually had zero
+     * eligible events and permanently deadlocked.
+     */
+    const hardRecent =
+      this.recentEventIds.slice(
+        -this.config
+          .hardRepeatWindow
+      );
+
     const candidates = [];
 
     for (
@@ -915,8 +1005,9 @@ export class ShowEngine {
       MICRO_EVENTS
     ) {
       if (
-        this.recentEventIds
-          .includes(event.id)
+        hardRecent.includes(
+          event.id
+        )
       ) {
         continue;
       }
@@ -973,13 +1064,28 @@ export class ShowEngine {
         weight *= 1.4;
       }
 
-      if (
+      const categoryRecency =
         this.recentCategories
-          .includes(
-            event.category
+          .slice(
+            -this.config
+              .recentCategorySize
           )
+          .filter(
+            (category) =>
+              category ===
+              event.category
+          ).length;
+
+      if (
+        categoryRecency > 0
       ) {
-        weight *= 0.45;
+        weight *=
+          Math.max(
+            0.35,
+            1 -
+              categoryRecency *
+                0.18
+          );
       }
 
       candidates.push({
@@ -988,21 +1094,19 @@ export class ShowEngine {
       });
     }
 
-    const worldEventEligible =
-      now - this.lastEventAt >=
-      this.config
-        .eventCooldownMs;
-
     if (
-      worldEventEligible
+      sinceLast >=
+      this.config
+        .eventCooldownMs
     ) {
       for (
         const event of
         WORLD_EVENTS
       ) {
         if (
-          this.recentEventIds
-            .includes(event.id)
+          hardRecent.includes(
+            event.id
+          )
         ) {
           continue;
         }
@@ -1029,7 +1133,8 @@ export class ShowEngine {
         if (
           event.rare &&
           now -
-            this.lastRareEventAt <
+            this
+              .lastRareEventAt <
             this.config
               .rareEventCooldownMs
         ) {
@@ -1040,8 +1145,10 @@ export class ShowEngine {
           event.weight;
 
         if (
-          mode === "active" ||
-          mode === "crowded"
+          mode ===
+            "active" ||
+          mode ===
+            "crowded"
         ) {
           weight *= 1.25;
         }
@@ -1049,6 +1156,55 @@ export class ShowEngine {
         candidates.push({
           ...event,
           weight,
+        });
+      }
+    }
+
+    /*
+     * Second safety layer:
+     * if the anti-repeat window leaves zero candidates,
+     * relax only that repeat rule.
+     *
+     * Energy and cooldown constraints remain enforced.
+     */
+    if (
+      !candidates.length
+    ) {
+      for (
+        const event of
+        MICRO_EVENTS
+      ) {
+        if (
+          this.world.energy <
+          finiteNumber(
+            event.minEnergy,
+            0
+          )
+        ) {
+          continue;
+        }
+
+        if (
+          now <
+          finiteNumber(
+            this.cooldowns.get(
+              event.id
+            ),
+            0
+          )
+        ) {
+          continue;
+        }
+
+        candidates.push({
+          ...event,
+
+          weight:
+            Math.max(
+              0.1,
+              event.weight *
+                0.6
+            ),
         });
       }
     }
@@ -1072,6 +1228,7 @@ export class ShowEngine {
           ),
         })
       ),
+
       this.random
     );
   }
@@ -1124,7 +1281,9 @@ export class ShowEngine {
       now + cooldown
     );
 
-    if (event.rare) {
+    if (
+      event.rare
+    ) {
       this.lastRareEventAt =
         now;
     }
@@ -1136,12 +1295,12 @@ export class ShowEngine {
   ) {
     this.sequence += 1;
 
-    const seed =
-      now +
-      this.sequence * 9973;
-
     const random =
-      stableRandom(seed);
+      stableRandom(
+        now +
+        this.sequence *
+          9973
+      );
 
     const moodOptions =
       event.moods?.length
@@ -1172,6 +1331,7 @@ export class ShowEngine {
     let xpDelta = 1;
     let buildDelta = 0;
     let energyDelta = 0;
+
     let weather =
       this.world.weather;
 
@@ -1300,7 +1460,9 @@ export class ShowEngine {
     };
   }
 
-  #visibleEffectFor(event) {
+  #visibleEffectFor(
+    event
+  ) {
     const map = {
       building:
         "construction_progress",
@@ -1334,13 +1496,19 @@ export class ShowEngine {
     };
 
     return (
-      map[event.category] ||
+      map[
+        event.category
+      ] ||
       "character_reaction"
     );
   }
 
-  #returnHookFor(event) {
-    if (event.rare) {
+  #returnHookFor(
+    event
+  ) {
+    if (
+      event.rare
+    ) {
       return (
         "Rare discovery becomes part " +
         "of persistent world memory"
