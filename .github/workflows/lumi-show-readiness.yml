@@ -2,6 +2,7 @@ name: LUMI Show Readiness
 
 on:
   workflow_dispatch:
+
   push:
     branches:
       - main
@@ -11,11 +12,51 @@ on:
       - "scene-director.mjs"
       - "interaction-visualizer.mjs"
       - "show-simulator.mjs"
+      - "live-show-runtime.mjs"
+      - "live-show-runtime.test.mjs"
       - ".github/workflows/lumi-show-readiness.yml"
 
 jobs:
+  runtime-integration:
+    name: Live Runtime Integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Display Node version
+        run: node --version
+
+      - name: Syntax check Show Engine
+        run: node --check show-engine.mjs
+
+      - name: Syntax check Character Engine
+        run: node --check character-engine.mjs
+
+      - name: Syntax check Scene Director
+        run: node --check scene-director.mjs
+
+      - name: Syntax check Interaction Visualizer
+        run: node --check interaction-visualizer.mjs
+
+      - name: Syntax check Live Show Runtime
+        run: node --check live-show-runtime.mjs
+
+      - name: Syntax check Live Runtime Tests
+        run: node --check live-show-runtime.test.mjs
+
+      - name: Run Live Runtime Integration Tests
+        run: node live-show-runtime.test.mjs
+
   readiness:
-    name: Day-One Show Readiness
+    name: Day-One Show Readiness (${{ matrix.duration }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
